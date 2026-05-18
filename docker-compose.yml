@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:18
@@ -8,9 +7,16 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: wb_feedbacks
     ports:
-      - '5433:5432'
+      - '5432:5432'
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
+    networks:
+      - wb-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: .
@@ -18,7 +24,14 @@ services:
     ports:
       - '3000:3000'
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    networks:
+      - wb-network
 
 volumes:
   pgdata:
+
+networks:
+  wb-network:
+    driver: bridge
