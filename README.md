@@ -1,98 +1,167 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# WB Feedback Analyzer
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Сервис для сбора и AI-анализа отзывов с Wildberries. Собирает отзывы по идентификатору товара (imtId), разбивает их на периоды (старые и новые) и генерирует смысловую сводку с помощью GigaChat. Сравнивает старые и новые отзывы, выявляя позитивные и негативные изменения. Результаты кешируются в PostgreSQL для быстрого повторного доступа.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Стек
 
-## Description
+NestJS, TypeScript, PostgreSQL, TypeORM, GigaChat API, Docker
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Структура проекта
+<pre>
+├── src/
+│ ├── ai/                       # AI-сервис (GigaChat)
+│ │ ├── ai.module.ts            # Модуль AI
+│ │ └── ai.service.ts           # Логика общения с GigaChat
+│ ├── entities/                 # Сущности базы данных
+│ │ ├── feedback.entity.ts      # Таблица отзывов
+│ │ └── analysis.entity.ts      # Таблица кеша AI-анализа
+│ ├── feedback/                 # Основной модуль
+│ │ ├── feedback.controller.ts  # API-эндпоинты
+│ │ ├── feedback.module.ts      # Модуль обратной связи
+│ │ └── feedback.service.ts     # Бизнес-логика
+│ ├── types/                    # Типы данных
+│ │ └── wb-feedback.types.ts    # Типы ответов Wildberries API
+│ ├── app.module.ts             # Корневой модуль NestJS
+│ ├── config.ts                 # Конфигурация (ключ API, пароль БД)
+│ ├── errors.ts                 # Классификация ошибок
+│ ├── main.ts                   # Точка входа NestJS
+│ └── wildberries-client.ts     # HTTP-клиент для Wildberries
+├── Dockerfile                  # Инструкция сборки Docker-образа
+├── docker-compose.yml          # Конфигурация Docker (PostgreSQL + backend)
+└── README.md
+</pre>
 
-## Project setup
+## Запуск через Docker
 
-```bash
-$ npm install
+### 1. Получите ключ GigaChat API
+
+Зарегистрируйтесь в [личном кабинете Сбера](https://developers.sber.ru), создайте проект с GigaChat API и в разделе «Настройки API» получите Authorization Key.
+
+### 2. Вставьте ключ в конфиг
+
+Откройте `src/config.ts` и вставьте ключ в поле `GIGACHAT_CREDENTIALS`:
+
+```typescript
+export const GIGACHAT_CREDENTIALS = 'ваш_ключ_здесь';
+export const DB_PASSWORD = 'postgres';
 ```
 
-## Compile and run the project
+### 3. Запустите проект
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+docker compose up
 ```
 
-## Run tests
+Docker автоматически:
+- Скачает образ PostgreSQL 18
+- Создаст базу данных wb_feedbacks
+- Соберёт NestJS-приложение
+- Запустит оба контейнера в одной сети
+- Сервис будет доступен на http://localhost:3000.
 
-```bash
-# unit tests
-$ npm run test
+## API
+### - Сбор отзывов с разбиением по дате
+```text
+GET /feedbacks/collect?imtId=402091504&periodDays=90
+```
+|Параметр   |	По умолчанию |	Описание                                         |
+|-----------|--------------|---------------------------------------------------|
+|imtId	    |	    —        |	Идентификатор товара на Wildberries              |
+|periodDays	|     90       | Период в днях для разделения на «старые» и «новые»|
 
-# e2e tests
-$ npm run test:e2e
+Возвращает массив отзывов, разбитый на newFeedbacks и oldFeedbacks, со статистикой.
 
-# test coverage
-$ npm run test:cov
+### - Только статистика
+```text
+GET /feedbacks/stats?imtId=402091504
+```
+Возвращает агрегированную статистику без массива отзывов: количество, средние оценки, распределение по периодам.
+
+### - AI-сводка и сравнение
+```text
+GET /feedbacks/summary?imtId=402091504&periodDays=30
+```
+Собирает отзывы, разбивает на старые и новые, отправляет в GigaChat и возвращает структурированный анализ.
+
+### - Пример ответа:
+
+```json
+{
+  "success": true,
+  "imtId": "402091504",
+  "periodDays": 30,
+  "collectedAt": "2026-05-19T17:59:45.476Z",
+  "stats": {
+    "newCount": 13,
+    "oldCount": 73,
+    "newWithText": 13,
+    "oldWithText": 73,
+    "newAverageRating": 4,
+    "oldAverageRating": 4.16,
+    "overallAverageRating": 4.13
+  },
+  "analysis": {
+    "changes": {
+      "summary": "Ухудшение отношения покупателей к качеству продукции и обслуживанию. Появились жалобы на ошибки в размере и проблемы с возвратом товара.",
+      "negative": [
+        "Больше негативных отзывов о несоответствии размера и проблемах с возвратом товара",
+        "Появилось больше недовольства качеством упаковки"
+      ],
+      "positive": []
+    },
+    "overview": "Большинство отзывов положительные, однако встречаются жалобы на несоответствие размера и плохое качество упаковки. Покупатели отмечают комфорт и стиль брюк, хорошую посадку и приятные ощущения от материала.",
+    "highlights": [
+      "Хорошая посадка и удобная ткань",
+      "Стильный фасон и привлекательный внешний вид",
+      "Отмечают удобство и легкость движений",
+      "Некоторые покупатели указывают на необходимость подшивать брюки по длине",
+      "Упаковка товара часто вызывает недовольство"
+    ]
+  },
+  "cached": true
+}
 ```
 
-## Deployment
+<pre>
+=================================================
+📊 РЕЗУЛЬТАТЫ АНАЛИЗА
+=================================================
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+📝 ОБЩЕЕ ВПЕЧАТЛЕНИЕ:
+Большинство отзывов положительные, однако встречаются жалобы на несоответствие размера и плохое качество упаковки. Покупатели отмечают комфорт и стиль брюк, хорошую посадку и приятные ощущения от материала.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+🔑 КЛЮЧЕВЫЕ ТЕЗИСЫ:
+ 1. Хорошая посадка и удобная ткань
+ 2. Стильный фасон и привлекательный внешний вид
+ 3. Отмечают удобство и легкость движений
+ 4. Некоторые покупатели указывают на необходимость подшивать брюки по длине
+ 5. Упаковка товара часто вызывает недовольство
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+🔄 ИЗМЕНЕНИЯ:
+Ухудшение отношения покупателей к качеству продукции и обслуживанию. Появились жалобы на ошибки в размере и проблемы с возвратом товара.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+🔴 НЕГАТИВНЫЕ:
+ • Больше негативных отзывов о несоответствии размера и проблемах с возвратом товара
+ • Появилось больше недовольства качеством упаковки
 
-## Resources
+==================================================
+</pre>
 
-Check out a few resources that may come in handy when working with NestJS:
+## Как это работает
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+1. Сбор отзывов. Сервис запрашивает отзывы через Wildberries API по идентификатору товара (imtId). Используется пагинация и несколько зеркал API для надёжности.
 
-## Support
+2. Разбиение на периоды. Отзывы делятся на «старые» (старше N дней) и «новые» (за последние N дней). Если старых отзывов нет — AI делает сводку без сравнения.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+3. AI-анализ. Отзывы отправляются в GigaChat API. Модель получает подробный промпт с требованием вернуть структурированный JSON: общее впечатление, ключевые тезисы и изменения.
 
-## Stay in touch
+4. Кеширование. Отзывы и готовый анализ сохраняются в PostgreSQL. При повторном запросе с теми же параметрами данные отдаются из кеша (до 24 часов).
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+5. Ответ API. Клиент получает JSON со статистикой и AI-анализом.
 
-## License
+## Кеширование
+- Отзывы кешируются в таблице feedbacks на 24 часа. При повторном запросе того же товара парсинг Wildberries не выполняется.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- AI-анализ кешируется в таблице analyses на 24 часа. При повторном запросе с теми же imtId и periodDays результат отдаётся мгновенно.
+
+- Разные значения periodDays для одного товара создают отдельные записи в кеше анализа.

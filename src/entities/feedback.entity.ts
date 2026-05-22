@@ -1,3 +1,4 @@
+// src/entities/feedback.entity.ts
 import { Entity, PrimaryColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
 @Entity('feedbacks')

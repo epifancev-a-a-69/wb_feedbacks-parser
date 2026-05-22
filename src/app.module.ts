@@ -1,3 +1,4 @@
+// src/app.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FeedbackModule } from './feedback/feedback.module';
@@ -18,7 +19,6 @@ import { DB_PASSWORD } from './config';
       entities: [FeedbackEntity, AnalysisEntity],
       synchronize: true,
     }),
-    TypeOrmModule.forFeature([FeedbackEntity, AnalysisEntity]),
     FeedbackModule,
     AiModule,
   ],

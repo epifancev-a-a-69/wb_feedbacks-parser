@@ -1,3 +1,4 @@
+// src/entities/alanysis.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
 @Entity('analyses')
